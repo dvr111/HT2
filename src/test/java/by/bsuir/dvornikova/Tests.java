@@ -1,125 +1,133 @@
 package by.bsuir.dvornikova;
 
+import by.bsuir.dvornikova.model.*;
 import org.junit.*;
 import org.junit.Test;
 import org.junit.runners.MethodSorters;
-import org.openqa.selenium.By;
-import org.openqa.selenium.WebElement;
+import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.support.Color;
 
-import java.util.List;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class Tests {
 
-    private static ChromeDriver driver = new ChromeDriver();
+    private static WebDriver driver;
 
-    private static WebElement manageUsersDt;
+    private static ManagePage managePage;
 
-    private static WebElement createUserLink;
+    private static ManageUsersPage manageUsersPage;
+
+    private static CreateUserPage createUserPage;
+
+    private static DeleteUserDialog deleteUserDialog;
 
     @BeforeClass
-    public static void signIn() {
+    public static void setup() {
+        driver = new ChromeDriver();
+
         driver.navigate().to("http://localhost:8082/");
 
-        WebElement signInUsernameInput = driver.findElementByXPath("//input[@id='j_username']");
-        signInUsernameInput.sendKeys("admin");
+        SignInPage signInPage = new SignInPage(driver);
 
-        WebElement signInPasswordInput = driver.findElementByXPath("//input[@name='j_password']");
-        signInPasswordInput.sendKeys("password");
+        signInPage.setUsername("admin");
+        signInPage.setPassword("password");
 
-        WebElement signInButton = driver.findElementByXPath("//input[@class='submit-button primary']");
-
-        signInButton.click();
+        signInPage.submit();
     }
 
-    @Test()
+    @Test
     public void stepAOne() {
-        WebElement manageJenkinsLink = driver.findElement(By.linkText("Manage Jenkins"));
-        manageJenkinsLink.click();
+        NavigationPane navigationPane = new NavigationPane(driver);
+        navigationPane.manage();
 
-        manageUsersDt = driver.findElementByXPath("//dt[text()='Manage Users']");
-        WebElement manageUsersDd = driver.findElementByXPath("//dd[text()='Create/delete/modify users that can log in to this Jenkins']");
+        managePage = new ManagePage(driver);
 
-        Assert.assertTrue(manageUsersDt.isDisplayed());
-        Assert.assertTrue(manageUsersDd.isDisplayed());
+        assertTrue(managePage.hasManageUsersSection());
     }
 
     @Test
     public void stepBTwo() {
-        manageUsersDt.click();
+        managePage.manageUsers();
 
-        createUserLink = driver.findElementByXPath("//a[text()='Create User']");
-        Assert.assertTrue(createUserLink.isDisplayed());
+        manageUsersPage = new ManageUsersPage(driver);
+
+        assertTrue(manageUsersPage.hasCreateUserLink());
     }
 
     @Test
     public void stepCThree() {
-        createUserLink.click();
+        manageUsersPage.createUser();
 
-        List<WebElement> textInputFields = driver.findElementsByXPath("//form/div/table/tbody/tr/td/input[@type='text']");
-        List<WebElement> passwordInputFields = driver.findElementsByXPath("//form/div/table/tbody/tr/td/input[@type='password']");
+        createUserPage = new CreateUserPage(driver);
 
-        Assert.assertEquals(3, textInputFields.size());
-        Assert.assertEquals(2, passwordInputFields.size());
-
-        textInputFields.forEach(field -> Assert.assertTrue(field.getText().isEmpty()));
-        passwordInputFields.forEach(field -> Assert.assertTrue(field.getText().isEmpty()));
+        assertTrue(createUserPage.isCorrectForm());
+        assertTrue(createUserPage.isAllFieldsEmpty());
     }
 
     @Test
     public void stepDFour() {
-        WebElement usernameInput = driver.findElementByXPath("//input[@name='username']");
-        usernameInput.sendKeys("someuser");
+        createUserPage.setUsername("someuser");
+        createUserPage.setPassword("somepassword");
+        createUserPage.setConfirmPassword("somepassword");
+        createUserPage.setFullName("Some Full Name");
+        createUserPage.setEmail("some@addr.com");
 
-        WebElement passwordInput = driver.findElementByXPath("//input[@name='password1']");
-        passwordInput.sendKeys("somepassword");
+        Assert.assertEquals("#4b758b", Color.fromString(createUserPage.getCreateUserButton().getCssValue("background-color")).asHex());
 
-        WebElement confirmPasswordInput = driver.findElementByXPath("//*[@name='password2']");
-        confirmPasswordInput.sendKeys("somepassword");
+        createUserPage.submit();
 
-        WebElement fullNameInput = driver.findElementByXPath("//input[@name='fullname']");
-        fullNameInput.sendKeys("Some Full Name");
+        manageUsersPage = new ManageUsersPage(driver);
 
-        WebElement emailInput = driver.findElementByXPath("//input[@name='email']");
-        emailInput.sendKeys("some@addr.com");
-
-        WebElement createUserButton = driver.findElementByXPath("//button[text()='Create User']");
-
-        Assert.assertEquals("#4b758b", Color.fromString(createUserButton.getCssValue("background-color")).asHex());
-
-        createUserButton.click();
-
-        WebElement createdUserTableCell = driver.findElementByXPath("//tr/td/*[text()='someuser']");
-        Assert.assertTrue(createdUserTableCell.isDisplayed());
+        assertTrue(manageUsersPage.hasUser("someuser"));
     }
 
     @Test
     public void stepEFive() {
-        WebElement deleteUserLink = driver.findElementByXPath("//*[@href='user/someuser/delete']/*");
-        deleteUserLink.click();
+        manageUsersPage.deleteUser("someuser");
 
-        Assert.assertTrue(driver.getPageSource().contains("Are you sure about deleting the user from Jenkins?"));
+        deleteUserDialog = new DeleteUserDialog(driver);
+
+        assertTrue(deleteUserDialog.hasDeletingUserWarning());
     }
 
     @Test
     public void stepFSix() {
-        WebElement deleteUserYesButton = driver.findElementByXPath("//button[text()='Yes']");
-        Assert.assertEquals("#4b758b", Color.fromString(deleteUserYesButton.getCssValue("background-color")).asHex());
-        deleteUserYesButton.click();
+        Assert.assertEquals("#4b758b", Color.fromString(deleteUserDialog.getYesButton().getCssValue("background-color")).asHex());
 
-        Assert.assertTrue(driver.findElementsByXPath("//tr/td/*[text()='someuser']").isEmpty());
-        Assert.assertTrue(driver.findElementsByXPath("//*[@href='user/someuser/delete']/*").isEmpty());
+        deleteUserDialog.pressYesButton();
+
+        manageUsersPage = new ManageUsersPage(driver);
+
+        manageUsersPage.hasUser("someuser");
+        assertFalse(manageUsersPage.hasUser("someuser"));
+        assertFalse(manageUsersPage.isDeletableUser("someuser"));
     }
 
     @Test
     public void stepGSeven() {
-        Assert.assertTrue(driver.findElementsByXPath("//*[@href='user/admin/delete']/*").isEmpty());
+        assertFalse(manageUsersPage.isDeletableUser("admin"));
+    }
+
+    @Test
+    public void stepHEight() {
+        NavigationPane np = new NavigationPane(driver);
+
+        assertTrue(np.hasEnableAutoRefreshLink() && !np.hasDisableAutoRefreshLink());
+
+        np.toggleAutoRefresh();
+
+        assertTrue(!np.hasEnableAutoRefreshLink() && np.hasDisableAutoRefreshLink());
+
+        np.toggleAutoRefresh();
+
+        assertTrue(np.hasEnableAutoRefreshLink() && !np.hasDisableAutoRefreshLink());
     }
 
     @AfterClass
-    public static void shutdown() {
+    public static void teardown() {
         driver.quit();
     }
 
